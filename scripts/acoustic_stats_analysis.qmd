@@ -103,7 +103,7 @@ style D fill:#6DCD594D
 # formatR is used for soft-wrapping code
 
 # install/ load packages
-sketchy::load_packages(packages = c("knitr", "formatR"))
+sketchy::load_packages(packages = c("knitr", "formatR", "baRulho"))
 
 ```
 
