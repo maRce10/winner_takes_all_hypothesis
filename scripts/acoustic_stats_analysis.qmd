@@ -56,9 +56,9 @@ knitr::opts_chunk$set(
 
 # Purpose {.unnumbered .unlisted}
 
-- The first goal of this report
+- Measure degradation on re-recorded files
 
-- The second goal of this report
+- Run stats
 
 :::
 
