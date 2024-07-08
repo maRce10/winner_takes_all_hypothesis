@@ -43,7 +43,6 @@ if (file.exists("./.git/config")){
 
 # options to customize chunk outputs
 knitr::opts_chunk$set(
-  class.source = "numberLines lineAnchors", # for code line numbers
   tidy.opts = list(width.cutoff = 65), 
   tidy = TRUE,
   message = FALSE
@@ -125,12 +124,12 @@ sketchy::load_packages(
 
 ```{r}
 
-# metadata <- read.csv("./data/raw/")
+metadata <- read.csv("./data/raw/metadata_playback_experiments.csv")
 
 master.sf <- read.csv("./data/processed/master_annotations.csv")
 
 # remove bird songs
-master.sf <- master.sf[1:(grep("Haemorhous", master.sf$orig.sound.file)[1] - 1), ]
+master.sf <- master.sf[c(1:(grep("Haemorhous", master.sf$orig.sound.file)[1] - 1), nrow(master.sf)), ]
 
 # rename sound file
 master.sf$sound.files <- "consolidated_master_only_synthetic.wav"
@@ -140,16 +139,29 @@ master.sf$sound.id <- paste(master.sf$orig.sound.file, seq_len(nrow(master.sf)),
 
 master.sf$sound.id[1] <- "start_marker"
 
-found.starts <- baRulho::find_markers(X = master.sf, markers = "start_marker", path = "./data/raw/recordings", cores = 2)
+master.sf$sound.id[nrow(master.sf)] <- "end_marker"
+
+master.sf$start[master.sf$sound.id == "end_marker"] <- 194.074
+
+master.sf$end[master.sf$sound.id == "end_marker"] <- 194.931
+
+exp_raven(master.sf, path = "./data/raw", file.name = "master_annotations",
+    sound.file.path = "./data/raw/recordings")
+
+found.starts <- baRulho::find_markers(X = master.sf, markers = c("start_marker", "end_marker"), path = "./data/raw/recordings", cores = 3)
 
 warbleR::info_sound_files("./data/raw/recordings")
-
-found.starts
 
 alg.tests <- align_test_files(X = master.sf, Y = found.starts, path = "./data/raw/recordings",
     by.song = FALSE)
 
-exp_raven("")
+alg.tests <- alg.tests[!(alg.tests$sound.files %in% "ZOOM0012_Tr2.WAV" & alg.tests$selec %in% 1:18), ]
+
+alg.tests$row <- 1:nrow(alg.tests)
+
+alg.tests <- alg.tests[!alg.tests$row %in% 13469:13486,]
+
+exp_raven(alg.tests, path = "./data/processed", file.name = "check_alignment", sound.file.path = "./data/raw/recordings", single.file = TRUE)
 
 getOption('baRulho')$files_to_check_align_test_files
 
@@ -157,49 +169,101 @@ cs <- check_sels(alg.tests, path = "./data/raw/recordings")
 
 table(alg.tests$sound.files)
 
-# remove 2 sound files with load singing real hummingbirds
-alg.tests <- alg.tests[!alg.tests$sound.files %in% c("ces-t2-10m.WAV",
-    "ces-t2-10m.WAV"), ]
 
-exp_raven(alg.tests, path = "./data/raw", file.name = "align_rerecorded",
-    sound.file.path = "./data/raw/recordings")
 
-exp_raven(alg.tests, path = "./data/raw", file.name = "align_rerecorded",
-    sound.file.path = "./data/raw/recordings")
+alg.tests <- manual_realign(X = alg.tests, Y = master.sf, path = "./data/raw/recordings", flim = c(0, 6), marker = "end_marker")
 
-alg.tests.est <- align_test_files(X = master.sf, Y = found.starts[!found.starts$test.files %in%
-    c("ces-t2-10m.WAV", "ces-t2-10m.WAV"), ], path = "./data/raw/recordings",
-    by.song = FALSE, output = "est")
 
 # add metadata
-alg.tests.est$trail <- substr(alg.tests.est$sound.files, start = 0,
-    stop = 3)
+metadata$transect.id <- paste(metadata$habitat.type, metadata$transect.., sep = "-")
 
-alg.tests.est$transect <- substr(alg.tests.est$sound.files, start = 5,
-    stop = 6)
+alg.tests$transect <- sapply(alg.tests$sound.files, function(x) metadata$transect.id[metadata$sound.file.name == x][1])
 
-alg.tests.est$distance <- substr(alg.tests.est$sound.files, start = 8,
-    stop = 10)
+alg.tests$distance <- sapply(alg.tests$sound.files, function(x) metadata$distance.from.signal..m.[metadata$sound.file.name == x][1])
 
-alg.tests.est <- alg.tests.est[order(alg.tests.est$sound.files, alg.tests.est$sound.id,
-    alg.tests.est$distance), ]
+alg.tests$habitat.type <- sapply(alg.tests$sound.files, function(x) metadata$habitat.type[metadata$sound.file.name == x][1])
 
-alg.tests.est <- alg.tests.est[grep("marker", alg.tests.est$sound.id,
-    invert = TRUE), ]
+# remove markers
+alg.tests <- alg.tests[grep("marker", alg.tests$sound.id,
+ invert = TRUE), ]
 
-alg.tests.est <- alg.tests.est[alg.tests.est$distance != 1, ]
+alg.tests.est <- selection_table(alg.tests, extended = TRUE, path = "./data/raw/recordings")
 
 saveRDS(alg.tests.est, "./data/raw/extended_selection_table_rerecorded_sounds.RDS")
+
 ```
 
-# Lorem ipsum
+# Measure degradation
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum in felis ut mauris consectetur sodales. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse nec ex neque. Nunc ultricies et ante ac feugiat. Nulla quam ex, viverra eget mollis non, porttitor nec ante. Donec non felis a nisi elementum consectetur tempor in mauris. Curabitur leo nunc, posuere in erat sit amet, varius aliquam mi. Nullam lacinia odio neque, et semper erat fermentum ut. Praesent mi massa, convallis in vehicula mattis, condimentum ac risus. In eget metus eget nunc pulvinar finibus. Proin nec tellus sed lorem malesuada aliquet sed laoreet augue. 
 
-```{r example external image, eval = TRUE, out.width = "30%", echo = FALSE, fig.align= "center", fig.cap="Fig 1. R logo, Lorem ipsum dolor sit amet, consectetur adipiscing elit."}
+```{r}
+alg.tests.est <- readRDS("../data/processed/extended_selection_table_rerecorded_sounds.RDS")
 
-# print center image
-knitr::include_graphics(file.path(R.home("doc"), "html", "logo.jpg"))
+table(alg.tests.est$sound.id) 
+
+table(alg.tests.est$distance)
+
+# remove 3 m distance
+alg.tests.est <- alg.tests.est[alg.tests.est$distance != 3, ]
+
+# keep only not harm 
+alg.tests.est <- alg.tests.est[grep("no.harm", alg.tests.est$sound.id), ]
+
+alg.tests.est
+
+cores <- 3
+
+alg.tests.est <- resample_est(alg.tests.est, samp.rate = 22.05, parallel = cores)
+
+
+saveRDS(alg.tests.est, "./data/raw/extended_selection_table_subset_resampled_rerecorded_sounds.RDS")
+
+```
+
+
+```{r}
+
+alg.tests.est <- readRDS("./data/processed/extended_selection_table_subset_resampled_rerecorded_sounds.RDS")
+
+alg.tests.est <- set_reference_sounds(alg.tests.est)
+
+# run blur ratio
+alg.tests.est <- blur_ratio(alg.tests.est, cores = cores)
+
+# run Spectrum blur ratio
+alg.tests.est <- spectrum_blur_ratio(alg.tests.est, cores = cores)
+
+# run envelope correlation
+alg.tests.est <- excess_attenuation(alg.tests.est, cores = cores)
+
+# run envelope correlation
+alg.tests.est <- envelope_correlation(alg.tests.est, cores = cores)
+
+# run spectrum correlation
+alg.tests.est <- spectrum_correlation(alg.tests.est, cores = cores)
+
+# run signal to noise ratio
+alg.tests.est <- signal_to_noise_ratio(alg.tests.est, cores = cores, mar = 0.03)
+
+# run tail to noise ratio
+alg.tests.est <- tail_to_signal_ratio(alg.tests.est, cores = cores, tsr.formula = 2, mar = 0.03)
+
+names(alg.tests.est)[ncol(alg.tests.est)] <- "tail.to.noise.ratio"
+
+# run tail to signal ratio
+alg.tests.est <- tail_to_signal_ratio(alg.tests.est, cores = cores, tsr.formula = 1, mar = 0.03)
+
+# run spcc
+source("~/Dropbox/R_package_testing/baRulho/R/spcc.R")
+source("~/Dropbox/R_package_testing/warbleR/R/cross_correlation.R")
+source("~/Dropbox/R_package_testing/warbleR/R/internal_functions.R")
+
+alg.tests.est <- spcc(X = alg.tests.est, cores = cores)
+
+
+alg.tests <- as.data.frame(alg.tests.est)
+
+write.csv(alg.tests, "./data/processed/degradation_metrics.csv", row.names = FALSE)
 
 ```
 
@@ -212,8 +276,6 @@ knitr::include_graphics(file.path(R.home("doc"), "html", "logo.jpg"))
 ::: {.alert .alert-success}
 
 # Takeaways {.unnumbered .unlisted}
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum in felis ut mauris consectetur sodales. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 
 ::: 
 

@@ -1,0 +1,21 @@
+sound file name,transect #,distance from signal (m),habitat type,date,time,GPS coords,trail name,distance on trail (m)
+ZOOM0001_Tr1.WAV,1,10,primary,07/07/24,8:46,"84711.7N, 825749.6W",rio java,100
+ZOOM0002_Tr1.WAV,2,10,primary,07/07/24,9:06,"84712.2N, 8257553.5W",rio java,1000-1500
+ZOOM0003_Tr1.WAV,3,10,primary,07/07/24,9:31,"84713.6N, 825754.4W",melissa,<100
+ZOOM0005_Tr1.WAV,1,10,secondary,07/07/24,10:10,"84718.4N, 825801.7W",melissa,700
+ZOOM0006_Tr1.WAV,2,10,secondary,07/07/24,10:29,"84720.1N, 825803.7W",melissa,750
+ZOOM0007_Tr1.WAV,3,10,secondary,07/07/24,10:46,"84723.3N, 825801.7W",melissa,800
+ZOOM0011_Tr1.WAV,1,10,open garden,07/07/24,14:03,"84709.6N, 825731.7W",n/a,n/a
+ZOOM0012_Tr1.WAV,2,10,open garden,07/07/24,14:13,"84710.3N, 825730.7W",n/a,n/a
+ZOOM0014_Tr1.WAV,3,10,open garden,07/07/24,14:30,"84710.9N, 825733.7W",n/a,n/a
+ZOOM0001_Tr2.WAV,1,30,primary,07/07/24,8:46,"84711.7N, 825749.6W",rio java,100
+ZOOM0002_Tr2.WAV,2,30,primary,07/07/24,9:06,"84712.2N, 8257553.5W",rio java,1000-1500
+ZOOM0003_Tr2.WAV,3,30,primary,07/07/24,9:31,"84713.6N, 825754.4W",melissa,<100
+ZOOM0005_Tr2.WAV,1,30,secondary,07/07/24,10:10,"84718.4N, 825801.7W",melissa,700
+ZOOM0006_Tr2.WAV,2,30,secondary,07/07/24,10:29,"84720.1N, 825803.7W",melissa,750
+ZOOM0007_Tr2.WAV,3,30,secondary,07/07/24,10:46,"84723.3N, 825801.7W",melissa,800
+ZOOM0011_Tr2.WAV,1,30,open garden,07/07/24,14:03,"84709.6N, 825731.7W",n/a,n/a
+ZOOM0012_Tr2.WAV,2,30,open garden,07/07/24,14:13,"84710.3N, 825730.7W",n/a,n/a
+ZOOM0014_Tr2.WAV,3,30,open garden,07/07/24,14:30,"84710.9N, 825733.7W",n/a,n/a
+ZOOM0013_Tr1.WAV,control,1,open garden,07/07/24,14:18,"84710.4N, 825730.3W",n/a,n/a
+ZOOM0016_Tr1.WAV,control,3,behind classroom (open),07/07/24,18:00,"84706.5N, 825731.6W",n/a,n/a
