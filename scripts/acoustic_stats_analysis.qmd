@@ -1,7 +1,7 @@
 ---
 title: Acoustic and statistical analysis
 subtitle: Winner takes all acoustic adapation
-author: <a href="http://researcher.website.com/">Researcher name</a>
+author: <a href="https://marce10.github.io/">Marcelo Araya-Salas</a>
 date: "`r Sys.Date()`"
 toc: true
 toc-depth: 2
@@ -11,7 +11,7 @@ highlight-style: pygments
 format:
   html:
     df-print: kable
-    code-fold: show
+    code-fold: true
     code-tools: true
     css: qmd.css
 editor_options: 
@@ -66,27 +66,12 @@ knitr::opts_chunk$set(
 &nbsp; 
 
 
-<!-- light brown box -->
-::: {.alert .alert-warning}
-
-# Report overview {.unnumbered .unlisted}
-
-- You can have the sections listed here, for instance:
-
-  - [Lorem ipsum](#lorem-ipsum)
-  - [Takeaways](#takeaways)
-
-:::
-
-&nbsp;
-
 # Analysis flowchart {.unnumbered .unlisted}
 ```{mermaid, fig.align = "center"}
 flowchart
-  A[Read data] --> B(Format data) 
-  B --> C(Graphs)
-  C --> D(Statistical analysis)
-  D --> E(Model summary) 
+  A[Time sync files] --> B(Measure degradation) 
+  B --> C(Regression models)
+  C --> D(Model selection)
 
 style A fill:#44015466
 style B fill:#3E4A894D
@@ -116,13 +101,15 @@ sketchy::load_packages(
         "ggplot2",
         "corrplot",
         "emmeans",
-        "ggsignif"
+        "ggsignif",
+        "lme4"
     )
 )
 ```
 # Time sync all replicates
 
 ```{r}
+#| eval: false
 
 metadata <- read.csv("./data/raw/metadata_playback_experiments.csv")
 
@@ -195,8 +182,10 @@ saveRDS(alg.tests.est, "./data/raw/extended_selection_table_rerecorded_sounds.RD
 
 # Measure degradation
 
-
+## Using 1 m reference
 ```{r}
+#| eval: false
+
 alg.tests.est <- readRDS("../data/processed/extended_selection_table_rerecorded_sounds.RDS")
 
 table(alg.tests.est$sound.id) 
@@ -220,8 +209,8 @@ saveRDS(alg.tests.est, "./data/raw/extended_selection_table_subset_resampled_rer
 
 ```
 
-
 ```{r}
+#| eval: false
 
 alg.tests.est <- readRDS("./data/processed/extended_selection_table_subset_resampled_rerecorded_sounds.RDS")
 
@@ -260,18 +249,545 @@ source("~/Dropbox/R_package_testing/warbleR/R/internal_functions.R")
 
 alg.tests.est <- spcc(X = alg.tests.est, cores = cores)
 
+af <- spectro_analysis(alg.tests.est, parallel = cores)
+
+alg.tests.est$peak.frequency <- af$meanpeakf
 
 alg.tests <- as.data.frame(alg.tests.est)
+
+alg.tests <- alg.tests[alg.tests$distance > 3, ]
 
 write.csv(alg.tests, "./data/processed/degradation_metrics.csv", row.names = FALSE)
 
 ```
 
-<!-- '&nbsp;' adds blank space -->
+## Using 3 m reference
+```{r}
+#| eval: false
+
+alg.tests.est <- readRDS("./data/raw/extended_selection_table_rerecorded_sounds.RDS")
+
+table(alg.tests.est$sound.id) 
+
+table(alg.tests.est$distance)
+
+# remove 3 m distance
+alg.tests.est <- alg.tests.est[alg.tests.est$distance != 1, ]
+
+# keep only not harm 
+alg.tests.est <- alg.tests.est[grep("no.harm", alg.tests.est$sound.id), ]
+
+alg.tests.est
+
+cores <- 3
+
+alg.tests.est <- resample_est(alg.tests.est, samp.rate = 22.05, parallel = cores)
+
+
+saveRDS(alg.tests.est, "./data/raw/extended_selection_table_subset_resampled_rerecorded_sounds_3m_reference.RDS")
+
+```
+
+```{r}
+#| eval: false
+
+alg.tests.est <- readRDS("./data/raw/extended_selection_table_subset_resampled_rerecorded_sounds_3m_reference.RDS")
+
+alg.tests.est <- set_reference_sounds(alg.tests.est)
+
+# run blur ratio
+alg.tests.est <- blur_ratio(alg.tests.est, cores = cores)
+
+# run Spectrum blur ratio
+alg.tests.est <- spectrum_blur_ratio(alg.tests.est, cores = cores)
+
+# run envelope correlation
+alg.tests.est <- excess_attenuation(alg.tests.est, cores = cores)
+
+# run envelope correlation
+alg.tests.est <- envelope_correlation(alg.tests.est, cores = cores)
+
+# run spectrum correlation
+alg.tests.est <- spectrum_correlation(alg.tests.est, cores = cores)
+
+# run signal to noise ratio
+alg.tests.est <- signal_to_noise_ratio(alg.tests.est, cores = cores, mar = 0.03)
+
+# run tail to noise ratio
+alg.tests.est <- tail_to_signal_ratio(alg.tests.est, cores = cores, tsr.formula = 2, mar = 0.03)
+
+names(alg.tests.est)[ncol(alg.tests.est)] <- "tail.to.noise.ratio"
+
+# run tail to signal ratio
+alg.tests.est <- tail_to_signal_ratio(alg.tests.est, cores = cores, tsr.formula = 1, mar = 0.03)
+
+# run spcc
+source("~/Dropbox/R_package_testing/baRulho/R/spcc.R")
+source("~/Dropbox/R_package_testing/warbleR/R/cross_correlation.R")
+source("~/Dropbox/R_package_testing/warbleR/R/internal_functions.R")
+
+alg.tests.est <- spcc(X = alg.tests.est, cores = cores)
+
+af <- spectro_analysis(alg.tests.est, parallel = cores)
+
+alg.tests.est$peak.frequency <- af$meanpeakf
+
+alg.tests <- as.data.frame(alg.tests.est)
+
+alg.tests <- alg.tests[alg.tests$distance > 3, ]
+
+write.csv(alg.tests, "./data/processed/degradation_metrics_3m_reference.csv", row.names = FALSE)
+
+```
+
+# Stats
+## 3 m reference
+```{r}
+
+degrad_dat <- read.csv("./data/processed/degradation_metrics_3m_reference.csv")
+
+degrad_measures <- c("blur.ratio", "spectrum.blur.ratio", "excess.attenuation", "envelope.correlation", "spectrum.correlation", "signal.to.noise.ratio", "tail.to.noise.ratio", "tail.to.signal.ratio", "cross.correlation")
+
+pca <- prcomp(degrad_dat[, degrad_measures], scale = TRUE)
+
+pca
+summary(pca)
+
+degrad_dat$degrad.pc1 <- pca$x[,1] * -1
+
+degrad_dat$frequency.modulation <- ifelse(grepl("BB", degrad_dat$sound.id), "fm", "no.fm")  
+
+degrad_dat$amplitude.modulation <- ifelse(grepl("_am", degrad_dat$sound.id), "am", "no.am")  
+
+degrad_dat$duration <- ifelse(grepl("0.1", degrad_dat$sound.id), "short", "long")  
+
+degrad_dat$frequency <- degrad_dat$peak.frequency
+
+degrad_dat$peak.frequency <- NULL
+
+sim_candidates <- seq(0.5, 10, by = 0.5)
+
+degrad_dat$sim.frequency <- sapply(degrad_dat$frequency, function(x) sim_candidates[which.min(abs(sim_candidates - x))])
+
+degrad_dat$sound.treatment <- sapply(strsplit(degrad_dat$sound.id, ".wav"), "[[", 1) 
+
+degrad_dat$distance_f <- factor(as.character(degrad_dat$distance), levels = c("10", "30"), ordered = TRUE)
+
+# iter <- 5000
+# chains <- 4
+# priors <- c(prior(normal(0, 6), class = "b"))
+# 
+# set.seed(123)
+# 
+# mod <- brm(degrad.pc1 ~ 
+#                 frequency * habitat.type + 
+#                 duration * habitat.type +
+#                 frequency.modulation * habitat.type +
+#                 amplitude.modulation * habitat.type +
+#                 (1 | transect) +
+#                 mo(distance_f),
+#                 data = degrad_dat,
+#                 prior = priors, 
+#                 iter = iter, 
+#                 chains = chains, 
+#                 cores = chains, 
+#                 control = list(adapt_delta = 0.99, max_treedepth = 15), 
+#                 file = "./data/processed/global_regression_model_int_all_data.RDS", 
+#                 file_refit = "always"
+#             )
+
+int_mod <- lmer(degrad.pc1 ~ 
+                frequency * habitat.type + 
+                duration * habitat.type +
+                frequency.modulation * habitat.type +
+                amplitude.modulation * habitat.type +
+                (1 | transect / sound.treatment) +
+                (1 | distance_f),
+                data = degrad_dat)
+
+int2_mod <- lmer(degrad.pc1 ~ 
+                frequency * habitat.type + 
+                duration * habitat.type +
+                frequency.modulation * habitat.type +
+                amplitude.modulation * habitat.type +
+                distance_f +
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+no_int_mod <- lmer(degrad.pc1 ~ 
+                frequency + 
+                duration +
+                frequency.modulation +
+                amplitude.modulation +
+                (1 | transect / sound.treatment) +
+                (1 | distance_f),
+                data = degrad_dat)
+
+no_int2_mod <- lmer(degrad.pc1 ~ 
+                frequency + 
+                duration +
+                frequency.modulation +
+                amplitude.modulation +
+                distance_f +
+                (1 | transect / sound.treatment),       
+                data = degrad_dat)
+
+null_mod <- lmer(degrad.pc1 ~ 1 + 
+                (1 | transect / sound.treatment) +
+                (1 | distance_f),
+                data = degrad_dat)
 
 
 
-<!-- light green box -->
+aic_tab_3m <- AIC(int_mod, int2_mod, no_int_mod, no_int2_mod, null_mod)
+
+aic_tab_3m$delta_aic <- aic_tab_3m$AIC - min(aic_tab_3m$AIC)
+
+aic_tab_3m <- aic_tab_3m[order(aic_tab_3m$delta_aic), ]
+
+aic_tab_3m
+```
+
+## 1 m reference
+```{r}
+degrad_dat <- read.csv("./data/processed/degradation_metrics.csv")
+
+degrad_measures <- c("blur.ratio", "spectrum.blur.ratio", "excess.attenuation", "envelope.correlation", "spectrum.correlation", "signal.to.noise.ratio", "tail.to.noise.ratio", "tail.to.signal.ratio", "cross.correlation")
+```
+
+### Descriptive stats
+
+Total test sounds: `r nrow(degrad_dat)`
+```{r}
+agg <- aggregate(selec ~ habitat.type+ distance, degrad_dat, length)
+
+agg$bytran <- round(agg$selec / 3, 0)
+
+names(agg) <- c("habitat type", "distance", "total test sounds", "sounds per transect")
+
+agg
+
+```
+
+### PCA
+```{r}
+pca <- prcomp(degrad_dat[, degrad_measures], scale = TRUE)
+
+pca
+
+summary(pca)
+```
+
+### Model selection
+
+#### All interactions
+```{r}
+degrad_dat$degrad.pc1 <- pca$x[,1] * -1
+
+degrad_dat$frequency.modulation <- ifelse(grepl("BB", degrad_dat$sound.id), "+", "-")  
+
+degrad_dat$amplitude.modulation <- ifelse(grepl("_am", degrad_dat$sound.id), "+", "-")  
+
+degrad_dat$duration <- ifelse(grepl("0.1", degrad_dat$sound.id), "Short", "Long")  
+
+degrad_dat$frequency <- degrad_dat$peak.frequency
+
+degrad_dat$habitat.type <- gsub("primary", "Primary\nforest", degrad_dat$habitat.type)
+
+degrad_dat$habitat.type <- gsub("secondary", "Secondary\nforest", degrad_dat$habitat.type)
+
+degrad_dat$habitat.type <- gsub("open garden", "Open\nhabitat", degrad_dat$habitat.type)
+                                
+sim_candidates <- seq(0.5, 10, by = 0.5)
+
+degrad_dat$sim.frequency <- sapply(degrad_dat$frequency, function(x) sim_candidates[which.min(abs(sim_candidates - x))])
+
+degrad_dat$sound.treatment <- sapply(strsplit(degrad_dat$sound.id, ".wav"), "[[", 1) 
+
+degrad_dat$sound.treatment <- paste(degrad_dat$sim.frequency, degrad_dat$sound.treatment, sep = "-")
+
+degrad_dat$distance_f <- factor(as.character(degrad_dat$distance), levels = c("10", "30"), ordered = TRUE)
+
+# iter <- 5000
+# chains <- 4
+# priors <- c(prior(normal(0, 6), class = "b"))
+# 
+# set.seed(123)
+# 
+# mod <- brm(degrad.pc1 ~ 
+#                 frequency * habitat.type + 
+#                 duration * habitat.type +
+#                 frequency.modulation * habitat.type +
+#                 amplitude.modulation * habitat.type +
+#                 (1 | transect) +
+#                 mo(distance_f),
+#                 data = degrad_dat,
+#                 prior = priors, 
+#                 iter = iter, 
+#                 chains = chains, 
+#                 cores = chains, 
+#                 control = list(adapt_delta = 0.99, max_treedepth = 15), 
+#                 file = "./data/processed/global_regression_model_int_all_data.RDS", 
+#                 file_refit = "always"
+#             )
+
+plot_mod <- int_mod <- lmer(degrad.pc1 ~ 
+                frequency * habitat.type + 
+                duration * habitat.type +
+                frequency.modulation * habitat.type +
+                amplitude.modulation * habitat.type +
+                (1 | transect / sound.treatment) +
+                (1 | distance_f),
+                data = degrad_dat)
+
+int2_mod <- lmer(degrad.pc1 ~ 
+                frequency * habitat.type + 
+                duration * habitat.type +
+                frequency.modulation * habitat.type +
+                amplitude.modulation * habitat.type +
+                distance_f +
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+no_int_mod <- lmer(degrad.pc1 ~ 
+                frequency + 
+                duration +
+                frequency.modulation +
+                amplitude.modulation +
+                (1 | transect / sound.treatment) +
+                (1 | distance_f),
+                data = degrad_dat)
+
+no_int2_mod <- lmer(degrad.pc1 ~ 
+                frequency + 
+                duration +
+                frequency.modulation +
+                amplitude.modulation +
+                distance_f +
+                (1 | transect / sound.treatment),       
+                data = degrad_dat)
+
+null_mod <- lmer(degrad.pc1 ~ 1 + 
+                (1 | transect / sound.treatment) +
+                (1 | distance_f),
+                data = degrad_dat)
+
+
+aic_tab <- AIC(int_mod, int2_mod, no_int_mod, no_int2_mod, null_mod)
+
+aic_tab$delta_AIC <- aic_tab$AIC - min(aic_tab$AIC)
+
+aic_tab <- aic_tab[order(aic_tab$delta_AIC), ]
+
+aic_tab2 <- aic_tab[c(1, 3, 5), ]
+
+aic_tab2$model <- c("Interaction", "No interaction", "Null")
+
+rownames(aic_tab2) <- NULL
+aic_tab2[, c("model", "delta_AIC")]
+
+```
+
+### Each predictor separately
+
+#### Frequency
+```{r}
+
+int2_mod <- lmer(degrad.pc1 ~ 
+                frequency * habitat.type + 
+                distance_f +
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+no_int2_mod <- lmer(degrad.pc1 ~ 
+                frequency + 
+                distance_f +
+                (1 | transect / sound.treatment),       
+                data = degrad_dat)
+
+null_mod <- lmer(degrad.pc1 ~ 1 + 
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+
+aic_tab <- AIC(int2_mod, no_int2_mod, null_mod)
+
+aic_tab$delta_AIC <- aic_tab$AIC - min(aic_tab$AIC)
+
+aic_tab <- aic_tab[order(aic_tab$delta_AIC), ]
+
+# aic_tab2 <- aic_tab[c(1, 3, 5), ]
+# 
+aic_tab$model <- c("Interaction", "No interaction", "Null")
+
+rownames(aic_tab) <- NULL
+aic_tab[, c("model", "delta_AIC")]
+
+```
+
+#### Frequency modulation
+```{r}
+
+int2_mod <- lmer(degrad.pc1 ~ 
+                frequency.modulation * habitat.type + 
+                distance_f +
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+no_int2_mod <- lmer(degrad.pc1 ~ 
+                frequency.modulation + 
+                distance_f +
+                (1 | transect / sound.treatment),       
+                data = degrad_dat)
+
+null_mod <- lmer(degrad.pc1 ~ 1 + 
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+
+aic_tab <- AIC(int2_mod, no_int2_mod, null_mod)
+
+aic_tab$delta_AIC <- aic_tab$AIC - min(aic_tab$AIC)
+
+aic_tab <- aic_tab[order(aic_tab$delta_AIC), ]
+
+# aic_tab2 <- aic_tab[c(1, 3, 5), ]
+# 
+aic_tab$model <- c("Interaction", "No interaction", "Null")
+
+rownames(aic_tab) <- NULL
+aic_tab[, c("model", "delta_AIC")]
+
+```
+
+#### Amplitude modulation
+```{r}
+
+int2_mod <- lmer(degrad.pc1 ~ 
+                amplitude.modulation * habitat.type + 
+                distance_f +
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+no_int2_mod <- lmer(degrad.pc1 ~ 
+                amplitude.modulation + 
+                distance_f +
+                (1 | transect / sound.treatment),       
+                data = degrad_dat)
+
+null_mod <- lmer(degrad.pc1 ~ 1 + 
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+
+aic_tab <- AIC(int2_mod, no_int2_mod, null_mod)
+
+aic_tab$delta_AIC <- aic_tab$AIC - min(aic_tab$AIC)
+
+aic_tab <- aic_tab[order(aic_tab$delta_AIC), ]
+
+# aic_tab2 <- aic_tab[c(1, 3, 5), ]
+# 
+aic_tab$model <- c("Interaction", "No interaction", "Null")
+
+rownames(aic_tab) <- NULL
+aic_tab[, c("model", "delta_AIC")]
+
+```
+
+#### Duration
+```{r}
+
+int2_mod <- lmer(degrad.pc1 ~ 
+                duration * habitat.type + 
+                distance_f +
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+no_int2_mod <- lmer(degrad.pc1 ~ 
+                duration + 
+                distance_f +
+                (1 | transect / sound.treatment),       
+                data = degrad_dat)
+
+null_mod <- lmer(degrad.pc1 ~ 1 + 
+                (1 | transect / sound.treatment),
+                data = degrad_dat)
+
+
+aic_tab <- AIC(int2_mod, no_int2_mod, null_mod)
+
+aic_tab$delta_AIC <- aic_tab$AIC - min(aic_tab$AIC)
+
+aic_tab <- aic_tab[order(aic_tab$delta_AIC), ]
+
+# aic_tab2 <- aic_tab[c(1, 3, 5), ]
+# 
+aic_tab$model <- c("Interaction", "No interaction", "Null")
+
+rownames(aic_tab) <- NULL
+aic_tab[, c("model", "delta_AIC")]
+
+```
+
+```{r}
+
+# Create a data frame with a sequence of frequency values for each habitat type
+new_data <- expand.grid(
+  frequency = seq(min(degrad_dat$frequency), max(degrad_dat$frequency), length.out = 300),
+  habitat.type = unique(degrad_dat$habitat.type),
+  frequency.modulation = c("+", "-"),
+  amplitude.modulation = c("+", "-"),
+  duration = c("Short", "Long"))
+
+# Predict degrad.pc1 using the model for each combination of frequency and habitat.type
+new_data$degrad.pc1 <- predict(plot_mod, newdata = new_data, re.form = NA)
+
+
+ggplot(new_data, aes(x = frequency, y = degrad.pc1, color = habitat.type, fill = habitat.type)) +
+    geom_smooth(se = FALSE, linewidth = 2) +
+    scale_color_viridis_d(alpha = 0.7) + 
+    labs(
+        x = "Frequency",
+        y = "Degradation (PC1)",
+        color = "Habitat type",
+        fill = "Habitat type"
+    ) +
+    theme_classic(base_size = 20)
+
+
+ggplot(new_data, aes(color = frequency.modulation, y = degrad.pc1, x = habitat.type, fill = habitat.type)) +
+  geom_boxplot() +
+    scale_color_grey() + 
+    scale_fill_viridis_d(alpha = 0.7, guide = NULL) + 
+  labs(x = "Habitat type",
+       y = "Degradation (PC1)",
+       fill = "Frequency\nmodulation",
+       color = "Frequency\nmodulation") +
+    theme_classic(base_size = 20)
+
+ggplot(new_data, aes(color = amplitude.modulation, y = degrad.pc1, x = habitat.type, fill = habitat.type)) +
+  geom_boxplot() +
+    scale_color_grey() + 
+    scale_fill_viridis_d(alpha = 0.7, guide = NULL) + 
+  labs(x = "Habitat type",
+       y = "Degradation (PC1)",
+       fill = "Amplitude\nmodulation",
+       color = "Amplitude\nmodulation") +
+    theme_classic(base_size = 20)
+
+
+ggplot(new_data, aes(color = duration, y = degrad.pc1, x = habitat.type, fill = habitat.type)) +
+  geom_boxplot() +
+    scale_color_grey() + 
+    scale_fill_viridis_d(alpha = 0.7, guide = NULL) + 
+  labs(x = "Habitat type",
+       y = "Degradation (PC1)",
+       fill = "Duration",
+       color = "Duration") +
+    theme_classic(base_size = 20)
+
+```
 
 ::: {.alert .alert-success}
 

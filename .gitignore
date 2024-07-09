@@ -4,3 +4,4 @@
 .Ruserdata
 data/raw/extended_selection_table_rerecorded_sounds.RDS
 data/raw/extended_selection_table_subset_resampled_rerecorded_sounds.RDS
+data/raw/extended_selection_table_subset_resampled_rerecorded_sounds_3m_reference.RDS
